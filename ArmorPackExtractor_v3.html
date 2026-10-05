@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Armor Pack Extractor v3 — Java → Bedrock + Bedrock</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg: #0a0c12; --card: #12161f; --border: #232936;
+      --accent: #a78bfa; --accent2: #22d3ee; --text: #e2e8f0;
+      --muted: #94a3b8; --danger: #f87171; --success: #34d399; --warn: #fbbf24;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+    .container { max-width: 920px; margin: 0 auto; padding: 1.6rem 1rem 3rem; }
+    header { text-align: center; margin-bottom: 1.8rem; }
+    header h1 {
+      font-size: 1.65rem; font-weight: 700;
+      background: linear-gradient(135deg, #c4b5fd, #22d3ee);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    header p { color: var(--muted); font-size: 0.9rem; margin-top: 0.3rem; }
+    .badge {
+      display: inline-block; margin-top: 0.5rem; padding: 0.18rem 0.6rem;
+      background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.35);
+      border-radius: 999px; font-size: 0.72rem; color: #c4b5fd;
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 13px; padding: 1.25rem; margin-bottom: 1rem;
+    }
+    .card h2 { font-size: 0.98rem; margin-bottom: 0.85rem; display: flex; align-items: center; gap: 0.4rem; }
+    .card h2 span { opacity: 0.6; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.28rem; }
+    input[type="text"], textarea, select {
+      width: 100%; background: #0c0f16; border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.55rem 0.75rem; color: var(--text);
+      font-size: 0.9rem; margin-bottom: 0.75rem; outline: none;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 55px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+    @media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: 11px; padding: 1.8rem 1rem;
+      text-align: center; cursor: pointer; transition: all 0.2s; background: #0c0f16; position: relative;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: #10141c; }
+    .dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
+    .dropzone .icon { font-size: 2rem; margin-bottom: 0.35rem; }
+    .dropzone p { color: var(--muted); font-size: 0.85rem; }
+    .dropzone .filename { margin-top: 0.45rem; color: var(--accent2); font-weight: 600; font-size: 0.85rem; }
+    .checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin-bottom: 0.35rem; }
+    .checks label { display: flex; align-items: center; gap: 0.32rem; cursor: pointer; color: var(--text); font-size: 0.84rem; margin: 0; }
+    .checks input { width: auto; margin: 0; accent-color: var(--accent); }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; border: none;
+      border-radius: 10px; padding: 0.75rem 1.3rem; font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; width: 100%; transition: 0.15s;
+    }
+    .btn:hover { opacity: 0.93; transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn.success { background: linear-gradient(135deg, #34d399, #059669); }
+    .log {
+      background: #07090e; border: 1px solid var(--border); border-radius: 9px;
+      padding: 0.85rem; font-family: Consolas, 'Fira Code', monospace; font-size: 0.76rem;
+      max-height: 340px; overflow-y: auto; white-space: pre-wrap; color: #a1aab8;
+    }
+    .log .ok { color: var(--success); } .log .warn { color: var(--warn); }
+    .log .err { color: var(--danger); } .log .info { color: var(--accent2); } .log .dim { color: #64748b; }
+    .status { text-align: center; margin-top: 0.75rem; font-size: 0.85rem; color: var(--muted); }
+    .progress-wrap { height: 5px; background: #1a2030; border-radius: 99px; margin-top: 0.7rem; overflow: hidden; display: none; }
+    .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #8b5cf6, #22d3ee); border-radius: 99px; transition: width 0.2s; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 0.45rem; margin-top: 0.8rem; }
+    .stat { background: #0c0f16; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; text-align: center; }
+    .stat .num { font-size: 1.1rem; font-weight: 700; color: var(--accent2); }
+    .stat .lbl { font-size: 0.7rem; color: var(--muted); }
+    .note {
+      background: rgba(251,191,36,0.07); border: 1px solid rgba(251,191,36,0.22);
+      border-radius: 8px; padding: 0.65rem 0.8rem; font-size: 0.78rem; color: #fde68a; margin-top: 0.6rem;
+    }
+    footer { text-align: center; margin-top: 1.8rem; color: var(--muted); font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⚔️ Armor Pack Extractor v3</h1>
+      <p>Bedrock full · Java → Bedrock (texturas de armadura + ítems)</p>
+      <span class="badge">Soporta equipment/humanoid · models/armor · items · PBR</span>
+    </header>
+
+    <div class="card">
+      <h2><span>1.</span> Sube el pack (.mcpack / .zip)</h2>
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept=".mcpack,.zip,application/zip" />
+        <div class="icon">📦</div>
+        <p>Java o Bedrock · Arrastra o haz clic</p>
+        <div class="filename" id="fileName"></div>
+      </div>
+      <div class="progress-wrap" id="progressWrap"><div class="progress-bar" id="progressBar"></div></div>
+    </div>
+
+    <div class="card">
+      <h2><span>2.</span> Opciones</h2>
+      <div class="row">
+        <div>
+          <label for="packName">Nombre del pack</label>
+          <input type="text" id="packName" value="Armors by Walker" />
+        </div>
+        <div>
+          <label for="packVersion">Versión</label>
+          <input type="text" id="packVersion" value="1.0.0" />
+        </div>
+      </div>
+      <label for="packDesc">Descripción</label>
+      <textarea id="packDesc">Armor & weapons textures converted / extracted for Bedrock.</textarea>
+
+      <label>Tipo de pack de entrada</label>
+      <select id="packType">
+        <option value="auto">Detectar automáticamente</option>
+        <option value="bedrock">Bedrock (resource pack)</option>
+        <option value="java">Java (resource pack)</option>
+      </select>
+
+      <label style="margin-top:0.35rem">Qué extraer / convertir</label>
+      <div class="checks">
+        <label><input type="checkbox" id="optArmorWorn" checked /> Armadura puesta (capa 1 y 2)</label>
+        <label><input type="checkbox" id="optItemIcons" checked /> Iconos de ítems (inventario)</label>
+        <label><input type="checkbox" id="optWeapons" checked /> Armas y herramientas</label>
+        <label><input type="checkbox" id="optTrims" /> Trims (avanzado)</label>
+        <label><input type="checkbox" id="optModels" checked /> Modelos Bedrock (.geo / player_armor)</label>
+        <label><input type="checkbox" id="optAnims" checked /> Animaciones Bedrock</label>
+        <label><input type="checkbox" id="optAttach" checked /> Attachables Bedrock</label>
+        <label><input type="checkbox" id="optIcon" checked /> Generar icono</label>
+      </div>
+      <div class="note">
+        <b>Java → Bedrock:</b> Se convierten las texturas de armadura puesta
+        (<code>equipment/humanoid</code> → <code>models/armor/*_1.png</code> y
+        <code>humanoid_leggings</code> → <code>*_2.png</code>.<br>
+        Los iconos de ítems van a <code>textures/items/</code>.<br>
+        Los modelos 3D de Java <b>no</b> se convierten (usa Blockbench para eso).
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span>3.</span> Generar</h2>
+      <button class="btn" id="btnProcess" disabled>🛠️ Convertir / Extraer a Bedrock</button>
+      <div class="status" id="status"></div>
+      <div class="stats" id="stats" style="display:none">
+        <div class="stat"><div class="num" id="sArmor">0</div><div class="lbl">Armadura (capas)</div></div>
+        <div class="stat"><div class="num" id="sItems">0</div><div class="lbl">Iconos ítems</div></div>
+        <div class="stat"><div class="num" id="sMod">0</div><div class="lbl">Modelos</div></div>
+        <div class="stat"><div class="num" id="sAtt">0</div><div class="lbl">Attachables</div></div>
+        <div class="stat"><div class="num" id="sAni">0</div><div class="lbl">Anims</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span>📋</span> Registro</h2>
+      <div class="log" id="log">Esperando archivo…</div>
+    </div>
+
+    <footer>
+      Todo local en tu navegador · Java equipment system + Bedrock 3D packs
+    </footer>
+  </div>
+
+<script>
+const $ = s => document.querySelector(s);
+const logEl = $('#log'), statusEl = $('#status'), btn = $('#btnProcess');
+const fileInput = $('#fileInput'), dropzone = $('#dropzone'), fileNameEl = $('#fileName');
+const progressWrap = $('#progressWrap'), progressBar = $('#progressBar'), statsEl = $('#stats');
+
+let selectedFile = null;
+
+function log(msg, type='') {
+  const d = document.createElement('div');
+  if (type) d.className = type;
+  d.textContent = msg;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function clearLog() { logEl.innerHTML = ''; }
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random()*16|0;
+    return (c==='x'?r:(r&0x3|0x8)).toString(16);
+  });
+}
+function parseVersion(s) {
+  const p = (s||'1.0.0').split('.').map(n => parseInt(n,10)||0);
+  return [p[0]||1, p[1]||0, p[2]||0];
+}
+function setProgress(p) {
+  progressWrap.style.display = 'block';
+  progressBar.style.width = Math.min(100, Math.max(0,p)) + '%';
+}
+
+// ========== MATERIAL NAME NORMALIZATION ==========
+// Java uses "gold", Bedrock armor files traditionally use "gold" too for layer textures
+// but item names use "golden_". We keep layer names as-is from source when possible.
+function armorLayerName(javaName) {
+  // javaName = chainmail, copper, diamond, gold, iron, leather, netherite
+  return javaName; // Bedrock accepts gold_1.png, diamond_1.png etc.
+}
+
+// ========== JAVA PATH → BEDROCK PATH MAPPER ==========
+function mapJavaPath(path) {
+  const p = path.replace(/\\/g, '/');
+  const lower = p.toLowerCase();
+  const base = p.split('/').pop();
+  const nameNoExt = base.replace(/\.(png|tga|jpg)$/i, '');
+
+  // --- New 1.21+ equipment system (worn armor) ---
+  // humanoid/{mat}.png  →  models/armor/{mat}_1.png
+  let m = lower.match(/textures\/entity\/equipment\/humanoid\/([a-z0-9_]+)\.png$/);
+  if (m) {
+    const mat = m[1];
+    if (mat === 'leather_overlay') return 'textures/models/armor/leather_1_overlay.png';
+    return 'textures/models/armor/' + armorLayerName(mat) + '_1.png';
+  }
+  // humanoid_leggings/{mat}.png  →  models/armor/{mat}_2.png
+  m = lower.match(/textures\/entity\/equipment\/humanoid_leggings\/([a-z0-9_]+)\.png$/);
+  if (m) {
+    const mat = m[1];
+    if (mat === 'leather_overlay') return 'textures/models/armor/leather_2_overlay.png';
+    return 'textures/models/armor/' + armorLayerName(mat) + '_2.png';
+  }
+
+  // --- Classic Java armor layers (older packs) ---
+  m = lower.match(/textures\/models\/armor\/([a-z0-9_]+)_layer_1\.png$/);
+  if (m) return 'textures/models/armor/' + m[1] + '_1.png';
+  m = lower.match(/textures\/models\/armor\/([a-z0-9_]+)_layer_2\.png$/);
+  if (m) return 'textures/models/armor/' + m[1] + '_2.png';
+  // Sometimes without _layer
+  m = lower.match(/textures\/models\/armor\/([a-z0-9_]+)\.png$/);
+  if (m) return 'textures/models/armor/' + m[1] + '.png';
+
+  // --- Item icons (inventory) ---
+  // textures/item/xxx.png  or  textures/items/xxx.png
+  if (/textures\/items?\//.test(lower) && /\.(png|tga)$/i.test(base)) {
+    return 'textures/items/' + base;
+  }
+
+  // --- Trims (optional) ---
+  if (lower.includes('textures/trims/')) {
+    // Keep a similar structure under textures/trims/ for possible future use
+    const idx = lower.indexOf('textures/trims/');
+    return 'textures/trims/' + p.substring(p.toLowerCase().indexOf('textures/trims/') + 'textures/trims/'.length);
+  }
+
+  // pack.png
+  if (/^pack\.png$/i.test(base) || lower.endsWith('/pack.png')) return 'pack_icon.png';
+
+  return null; // not mapped
+}
+
+// ========== BEDROCK DETECTION ==========
+function isBedrockArmorRelated(path, opts) {
+  const lower = path.replace(/\\/g,'/').toLowerCase();
+  const base = lower.split('/').pop();
+
+  if (lower.includes('__macosx') || lower.endsWith('.ds_store')) return false;
+  if (/manifest\.json$/i.test(base)) return false;
+
+  // Attachables
+  if (opts.attach && lower.includes('attachables/') &&
+      (/armor|helmet|chestplate|leggings|boots|turtle/i.test(lower))) return true;
+
+  // Models
+  if (opts.models && (lower.includes('models/') || lower.endsWith('.geo.json')) &&
+      (/armor|helmet|chestplate|leggings|boots|player_armor/i.test(lower))) return true;
+
+  // Animations
+  if (opts.anims && (lower.includes('animations/') || lower.includes('animation_controllers/')) &&
+      /armor|helmet|chest|leg|boot/i.test(lower)) return true;
+
+  // Textures – armor
+  if (lower.includes('textures/')) {
+    if (lower.includes('/armor/') || lower.includes('models/armor') ||
+        lower.includes('entity/attachable') ||
+        (/armor|helmet|chestplate|leggings|boots/i.test(base) && /\.(png|tga)$/i.test(base))) {
+      return true;
+    }
+  }
+
+  // Render controllers / materials related
+  if (lower.includes('render_controllers/') && /armor/i.test(lower)) return true;
+  if (lower.includes('materials/') && /entity|armor/i.test(lower)) return true;
+
+  return false;
+}
+
+// ========== FILE INPUT ==========
+fileInput.addEventListener('change', e => { if (e.target.files[0]) setFile(e.target.files[0]); });
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+function setFile(file) {
+  selectedFile = file;
+  fileNameEl.textContent = `${file.name}  (${(file.size/1024).toFixed(1)} KB)`;
+  btn.disabled = false;
+  statusEl.textContent = 'Archivo listo.';
+  clearLog();
+  log('Cargado: ' + file.name, 'ok');
+}
+
+// ========== ICON ==========
+async function generateIcon(name) {
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0,0,0,size);
+  g.addColorStop(0,'#1e1b4b'); g.addColorStop(1,'#0f172a');
+  ctx.fillStyle = g; ctx.fillRect(0,0,size,size);
+  ctx.beginPath(); ctx.arc(size/2, size/2-8, 72, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(167,139,250,0.2)'; ctx.fill();
+  ctx.fillStyle = '#c7d2e0';
+  ctx.beginPath(); ctx.ellipse(size/2, size/2-6, 54, 44, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#0f172a'; ctx.fillRect(size/2-34, size/2-20, 68, 22);
+  ctx.fillStyle = '#22d3ee'; ctx.fillRect(size/2-28, size/2-7, 56, 3);
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.moveTo(size/2, size/2-68); ctx.lineTo(size/2-11, size/2-36); ctx.lineTo(size/2+11, size/2-36);
+  ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText((name||'ARMORS').slice(0,14).toUpperCase(), size/2, size-26);
+  return new Promise(r => c.toBlob(b => r(b), 'image/png'));
+}
+
+// ========== MAIN ==========
+async function processPack() {
+  if (!selectedFile) return;
+  btn.disabled = true;
+  clearLog();
+  statsEl.style.display = 'none';
+  setProgress(3);
+  statusEl.textContent = 'Analizando…';
+
+  const packName = $('#packName').value.trim() || 'Armors by Walker';
+  const packDesc = $('#packDesc').value.trim() || 'Converted armor pack';
+  const version = parseVersion($('#packVersion').value);
+  const packTypeOpt = $('#packType').value;
+
+  const opts = {
+    armorWorn: $('#optArmorWorn').checked,
+    itemIcons: $('#optItemIcons').checked,
+    weapons: $('#optWeapons').checked,
+    trims: $('#optTrims').checked,
+    models: $('#optModels').checked,
+    anims: $('#optAnims').checked,
+    attach: $('#optAttach').checked,
+    icon: $('#optIcon').checked
+  };
+
+  try {
+    const zip = await JSZip.loadAsync(selectedFile);
+    setProgress(12);
+    const allPaths = Object.keys(zip.files).filter(p => !zip.files[p].dir);
+    log('Archivos en el ZIP: ' + allPaths.length, 'dim');
+
+    // Detect type
+    let isJava = false;
+    let isBedrock = false;
+    for (const p of allPaths) {
+      const l = p.toLowerCase();
+      if (l.includes('assets/minecraft/')) isJava = true;
+      if (l.includes('manifest.json') || l.includes('attachables/') || l.includes('textures/models/armor')) isBedrock = true;
+    }
+    if (packTypeOpt === 'java') isJava = true;
+    if (packTypeOpt === 'bedrock') { isJava = false; isBedrock = true; }
+
+    if (isJava) log('Detectado: Resource Pack de JAVA', 'info');
+    else if (isBedrock) log('Detectado: Resource Pack de BEDROCK', 'info');
+    else log('Tipo no claro — se intentará mapeo mixto', 'warn');
+
+    const newZip = new JSZip();
+    let cArmor = 0, cItems = 0, cMod = 0, cAtt = 0, cAni = 0;
+    let foundIcon = null;
+    const total = allPaths.length;
+    let done = 0;
+
+    // Weapon/tool keywords for filtering item icons
+    const weaponRe = /(sword|axe|pickaxe|shovel|hoe|bow|mace|spear|trident|crossbow)/i;
+    const armorItemRe = /(helmet|chestplate|leggings|boots|turtle)/i;
+
+    for (const path of allPaths) {
+      done++;
+      if (done % 80 === 0) {
+        setProgress(12 + (done/total)*60);
+        statusEl.textContent = `Procesando ${done}/${total}…`;
+      }
+
+      const lower = path.replace(/\\/g,'/').toLowerCase();
+      const base = path.split(/[/\\]/).pop();
+
+      // Original icon
+      if (/pack\.png$/i.test(base) || /pack_icon\.png$/i.test(base)) {
+        foundIcon = await zip.files[path].async('blob');
+        continue;
+      }
+      if (/manifest\.json$/i.test(base) || /pack\.mcmeta$/i.test(base)) continue;
+
+      // ========== JAVA CONVERSION ==========
+      if (isJava) {
+        const mapped = mapJavaPath(path);
+        if (!mapped) continue;
+
+        // Filter by options
+        if (mapped.startsWith('textures/models/armor/')) {
+          if (!opts.armorWorn) continue;
+          const content = await zip.files[path].async('uint8array');
+          newZip.file(mapped, content);
+          cArmor++;
+          if (cArmor <= 12) log('⚔ Armadura: ' + base + '  →  ' + mapped, 'ok');
+          continue;
+        }
+
+        if (mapped.startsWith('textures/items/')) {
+          const isWeapon = weaponRe.test(base);
+          const isArmorIcon = armorItemRe.test(base);
+          if (isArmorIcon && !opts.itemIcons) continue;
+          if (isWeapon && !opts.weapons) continue;
+          if (!isArmorIcon && !isWeapon && !opts.itemIcons) continue;
+
+          const content = await zip.files[path].async('uint8array');
+          newZip.file(mapped, content);
+          cItems++;
+          if (cItems <= 10) log('🎒 Ítem: ' + base + '  →  ' + mapped, 'ok');
+          continue;
+        }
+
+        if (mapped.startsWith('textures/trims/')) {
+          if (!opts.trims) continue;
+          const content = await zip.files[path].async('uint8array');
+          newZip.file(mapped, content);
+          continue;
+        }
+
+        if (mapped === 'pack_icon.png') {
+          foundIcon = await zip.files[path].async('blob');
+          continue;
+        }
+      }
+
+      // ========== BEDROCK EXTRACTION ==========
+      if (isBedrock || !isJava) {
+        if (!isBedrockArmorRelated(path, opts)) continue;
+
+        // Decide output path – keep structure under known roots
+        let outPath = path.replace(/\\/g, '/');
+        // Strip possible outer folder
+        const roots = ['attachables/','models/','textures/','animations/','animation_controllers/','render_controllers/','materials/'];
+        for (const r of roots) {
+          const idx = outPath.toLowerCase().indexOf(r);
+          if (idx >= 0) { outPath = outPath.substring(idx); break; }
+        }
+
+        const isText = /\.(json|lang|material)$/i.test(base);
+        const content = await zip.files[path].async(isText ? 'string' : 'uint8array');
+        newZip.file(outPath, content);
+
+        if (outPath.includes('attachables/')) { cAtt++; if (cAtt<=5) log('✓ Attachable: '+base,'ok'); }
+        else if (outPath.includes('models/') || outPath.endsWith('.geo.json')) { cMod++; if (cMod<=5) log('✓ Modelo: '+base,'ok'); }
+        else if (outPath.includes('animations/') || outPath.includes('animation_controllers/')) { cAni++; if (cAni<=4) log('✓ Anim: '+base,'ok'); }
+        else if (outPath.includes('textures/models/armor') || outPath.includes('textures/items')) {
+          if (outPath.includes('models/armor')) cArmor++;
+          else cItems++;
+        }
+      }
+    }
+
+    setProgress(78);
+    log('', '');
+    log(`Resultado → Capas armadura: ${cArmor} | Ítems: ${cItems} | Modelos: ${cMod} | Attachables: ${cAtt} | Anims: ${cAni}`, 'info');
+
+    if (cArmor + cItems + cMod + cAtt + cAni === 0) {
+      log('⚠ No se extrajo nada. Revisa las opciones o el tipo de pack.', 'warn');
+      statusEl.textContent = 'Nada extraído.';
+      btn.disabled = false;
+      setProgress(0);
+      return;
+    }
+
+    // ---- Manifest ----
+    const manifest = {
+      format_version: 2,
+      header: {
+        description: packDesc,
+        name: packName,
+        uuid: uuid(),
+        version: version,
+        min_engine_version: [1, 16, 0]
+      },
+      modules: [{
+        type: 'resources',
+        uuid: uuid(),
+        version: version
+      }]
+    };
+    newZip.file('manifest.json', JSON.stringify(manifest, null, 2));
+    log('✓ manifest.json creado', 'ok');
+
+    // ---- Icon ----
+    if (opts.icon) {
+      const iconBlob = await generateIcon(packName);
+      newZip.file('pack_icon.png', iconBlob);
+      log('✓ Icono generado', 'ok');
+    } else if (foundIcon) {
+      newZip.file('pack_icon.png', foundIcon);
+      log('✓ Icono original usado', 'ok');
+    } else {
+      const iconBlob = await generateIcon(packName);
+      newZip.file('pack_icon.png', iconBlob);
+      log('✓ Icono generado (fallback)', 'ok');
+    }
+
+    // Ensure folders exist conceptually (JSZip creates on file add)
+
+    setProgress(90);
+    statusEl.textContent = 'Comprimiendo…';
+
+    const blob = await newZip.generateAsync({
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    }, meta => setProgress(90 + (meta.percent||0)*0.1));
+
+    const safe = packName.replace(/[^\w\s\-áéíóúñÁÉÍÓÚÑ]/gi,'').trim().replace(/\s+/g,'_');
+    const outName = safe + '.mcpack';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = outName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    setProgress(100);
+    log('', '');
+    log('✅ Descargado: ' + outName + '  (' + (blob.size/1024).toFixed(1) + ' KB)', 'ok');
+
+    $('#sArmor').textContent = cArmor;
+    $('#sItems').textContent = cItems;
+    $('#sMod').textContent = cMod;
+    $('#sAtt').textContent = cAtt;
+    $('#sAni').textContent = cAni;
+    statsEl.style.display = 'grid';
+
+    statusEl.textContent = '¡Listo!';
+    btn.classList.add('success');
+    btn.textContent = '✅ Pack creado';
+    setTimeout(() => {
+      btn.classList.remove('success');
+      btn.textContent = '🛠️ Convertir / Extraer a Bedrock';
+      btn.disabled = false;
+    }, 2500);
+
+  } catch (err) {
+    console.error(err);
+    log('❌ Error: ' + (err.message||err), 'err');
+    statusEl.textContent = 'Error';
+    btn.disabled = false;
+    setProgress(0);
+  }
+}
+
+btn.addEventListener('click', processPack);
+</script>
+</body>
+</html>
